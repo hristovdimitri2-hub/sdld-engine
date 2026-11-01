@@ -3,7 +3,7 @@ import zipfile
 
 root = pathlib.Path(".").resolve()
 # e2e* = работни копия от доказателните прогони (не се пакетират)
-skip_dirs = {"__pycache__", ".pytest_cache", ".ai-brain"}
+skip_dirs = {"__pycache__", ".pytest_cache", ".ai-brain", ".git"}
 out = root.parent / "sdld-engine-v0.1.1.zip"
 
 count = 0
