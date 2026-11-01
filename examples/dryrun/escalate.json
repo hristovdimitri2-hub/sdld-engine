@@ -1,0 +1,7 @@
+{
+  "action": "stop_human",
+  "found_by": "gate",
+  "confidence": 1.0,
+  "reason": "Гейтът провали максималния брой опити — нужен е човек.",
+  "blocking_issues": ["gate_fail"]
+}

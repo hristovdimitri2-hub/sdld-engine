@@ -1,0 +1,15 @@
+{
+  "contract_id": "C-001",
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "Създай src/vat.py",
+      "description": "withVAT(amount: float, rate: float) -> float — стойност с ДДС, закръглена до 2 знака; валидация на входовете.",
+      "files": ["src/vat.py"],
+      "gate": "unittest",
+      "state": "planned",
+      "attempts": 0,
+      "last_error": ""
+    }
+  ]
+}

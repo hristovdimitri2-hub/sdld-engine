@@ -1,0 +1,7 @@
+{
+  "verdict": "pass",
+  "found_by": "auditor",
+  "confidence": 1.0,
+  "message": "Кодът отговаря на всички критерии от договора C-001; реалните тестове минават.",
+  "blocking_issues": []
+}

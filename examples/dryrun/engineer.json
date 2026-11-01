@@ -1,0 +1,3 @@
+{
+  "summary": "Създаден е src/vat.py с withVAT(amount, rate): валидация на типове и отрицателен rate, закръгляне до 2 знака, docstring на български."
+}

@@ -1,0 +1,24 @@
+{
+  "mode": "dry",
+  "budget": {
+    "limit_usd": 5.0,
+    "soft_pause_usd": 4.5,
+    "allowance_per_task_usd": 0.5
+  },
+  "models": {
+    "default": "",
+    "judge": "",
+    "cheap": ""
+  },
+  "gate": {
+    "max_attempts": 3,
+    "command": ["{python}", "-m", "unittest", "discover", "-s", "tests"]
+  },
+  "dryrun": {
+    "dir": "examples/dryrun"
+  },
+  "live": {
+    "base_url": "https://openrouter.ai/api/v1",
+    "timeout_s": 120
+  }
+}
