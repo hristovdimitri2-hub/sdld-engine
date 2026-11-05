@@ -1,6 +1,8 @@
 # SDLD Engine v0.2.0 — автономен инженерен двигател
 
-Спецификация: [ARCHITECTURE.md](ARCHITECTURE.md). Малък, проверим цикъл:
+Спецификация: [ARCHITECTURE.md](ARCHITECTURE.md) · **Едностраничен лист за
+потребителя: [SPEC.md](SPEC.md)** (какво може, как се вика, какво липсва).
+Малък, проверим цикъл:
 договор → план → инструменти → реални тестове → одит. Никакви големи
 предположения.
 
@@ -61,7 +63,7 @@ Autoresearch е референцията, SDLD е по-строгият вари
 ## Бърз старт (PowerShell — това, което е тествано)
 
 ```powershell
-python -m pytest -q            # 82 теста, <6s
+python -m pytest -q            # 88 теста, <7s
 
 # 1) щастлив път — ЧИСТО копие (src изтрит → инженерът го пише)
 Copy-Item -Recurse -Force examples\todo-vat\project scratch
@@ -90,6 +92,21 @@ python -m engine.cli resume --project scratch --dry-run --budget-limit 5
 ```
 
 `status` показва: state, бюджет (spent/limit/entries) и feed (последните 10).
+
+### Машиночитаем изход: `--json` (05.11.2026)
+
+Добавяне на `--json` към `run`/`resume`/`status` прави stdout **един JSON
+обект** (човешките редове минават на stderr); същото се записва в
+`<project>/.ai-brain/last_run.json` — за VisiCode/Cline/външен агент.
+Схемата и реалният изход са в [SPEC.md](SPEC.md) §4.
+
+```powershell
+python -m engine.cli run "Направи модул за ДДС" --project scratch --dry-run --json
+# → {"tool":"sdld-engine","ok":true,"state":"done","counts":{...},...}
+```
+
+6 теста: `tests/test_cli_json.py` (чист stdout, блокиран сценарий също е
+JSON, файлова следа = stdout).
 
 ## Гейт и щат
 
@@ -132,8 +149,8 @@ engine/
   judge.py      механичен judge + критерий за простота (count_loc)
   loop.py       цикълът; exit 0/1/2
   cli.py        python -m engine.cli {run|status|resume}
-tests/          82 теста (журнал, kill-rule, простота, program, бюджет, гейтове,
-                съдия, памет, сигурност, отговори)
+tests/          88 теста (журнал, kill-rule, простота, program, бюджет, гейтове,
+                съдия, памет, сигурност, отговори, CLI --json)
 examples/       dry-run входове + проект с реални тестове (todo-vat)
 ```
 
