@@ -13,6 +13,83 @@ from .schemas import FeedbackPacket, Task, Verdict
 
 BANNED = ("TODO", "FIXME", "NotImplementedError", "XXX")
 
+# --- критерий за простота (адаптация от program.md на autoresearch) --------
+# Брои се КОДЪТ на инженера: тестовете/досието/документацията не са
+# негови и не участват в мярката за растеж.
+CODE_SUFFIXES = frozenset({
+    ".py", ".js", ".ts", ".jsx", ".tsx", ".go", ".rs", ".java",
+    ".c", ".h", ".cpp", ".hpp", ".rb", ".php", ".sh",
+})
+LOC_EXCLUDED_PARTS = frozenset({
+    ".ai-brain", ".git", "tests", "__pycache__", ".pytest_cache",
+    "node_modules", "e2e",
+})
+# Минат гейт, но +над това = предупреждение за простота (не блокира).
+SIMPLICITY_WARN_GROWTH = 50
+
+
+def count_loc(project: Path, files: list[str] | None = None) -> int:
+    """Редове код в проекта (или само в посочените файлове).
+
+    Пълното сканиране е мярката за растеж между опитите; списъкът с
+    файлове е за по-целенасочено измерване (липсващите = 0 реда).
+    """
+    root = Path(project)
+    total = 0
+    if files is not None:
+        for rel in files:
+            p = root / rel
+            if p.is_file():
+                total += len(p.read_text(
+                    encoding="utf-8", errors="replace").splitlines())
+        return total
+    for p in sorted(root.rglob("*")):
+        if not p.is_file():
+            continue
+        rel = p.relative_to(root)
+        if any(part in LOC_EXCLUDED_PARTS for part in rel.parts):
+            continue
+        if rel.suffix.lower() not in CODE_SUFFIXES:
+            continue
+        total += len(p.read_text(encoding="utf-8", errors="replace").splitlines())
+    return total
+
+
+def _simplicity(gate_ok: bool, *, loc: int | None,
+                prev_loc: int | None) -> tuple[str, str] | None:
+    """(машинен_код, човешки_текст) за критерия за простота; None = нищо."""
+    if loc is None or prev_loc is None:
+        return None  # няма предистория (първият опит) → няма сравнение
+    delta = loc - prev_loc
+    if gate_ok:
+        if delta < 0:
+            return (
+                f"simplicity=win:{delta}",
+                f"simplification win: {-delta} реда по-малко при минат гейт "
+                f"— критерият за простота печели.",
+            )
+        if delta > SIMPLICITY_WARN_GROWTH:
+            return (
+                f"simplicity=growth_warn:+{delta}",
+                f"simplicity: +{delta} реда при минат гейт — огледай дали може "
+                f"по-кратко (критерий за простота).",
+            )
+        return None
+    if delta > 0:
+        return (
+            f"simplicity=growth_on_fail:+{delta}",
+            f"кодът порасна с {delta} реда, а гейтът не минава — търси "
+            f"по-просто решение, а не повече код.",
+        )
+    return None
+
+
+def simplicity_note(gate_ok: bool, *, loc: int | None,
+                    prev_loc: int | None) -> str | None:
+    """Само човешкият текст (за тестове/употреба извън feedback)."""
+    hit = _simplicity(gate_ok, loc=loc, prev_loc=prev_loc)
+    return hit[1] if hit else None
+
 
 def structural_issues(task: Task, project: Path) -> list[str]:
     issues: list[str] = []
@@ -39,6 +116,8 @@ def feedback(
     round_no: int,
     project: Path,
     found_by: str = "gate",
+    loc: int | None = None,
+    prev_loc: int | None = None,
 ) -> FeedbackPacket:
     issues = structural_issues(task, project)
     ok = gate_ok and not issues
@@ -55,11 +134,17 @@ def feedback(
         human = f"{task.id}: провал ({round_no}. опит): {'; '.join(reasons)}."
         if gate_output:
             human += "\nИзход от тестовете:\n" + gate_output[-800:]
+    # критерий за простота: оценка на растежа между опитите (адаптация)
+    simp = _simplicity(gate_ok, loc=loc, prev_loc=prev_loc)
+    machine = [f"gate={'pass' if gate_ok else 'fail'}"] + issues
+    if simp:
+        machine.append(simp[0])
+        human += " " + simp[1]
     return FeedbackPacket(
         task_id=task.id,
         round_no=round_no,
         verdict=Verdict.PASS if ok else Verdict.FAIL,
-        machine_readable=[f"gate={'pass' if gate_ok else 'fail'}"] + issues,
+        machine_readable=machine,
         human_readable=human,
         blocking_issues=[] if ok else ["gate_fail"] + issues,
         found_by=found_by,

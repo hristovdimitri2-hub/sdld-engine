@@ -20,7 +20,9 @@ from pydantic import ValidationError
 
 from . import agents, gates, judge
 from .budget import BudgetPause, Ledger, remaining_need
+from .journal import Journal
 from .memory import CorruptBrain, Memory
+from .program import ensure_program, load_program
 from .schemas import (
     AuditorReply,
     Contract,
@@ -45,11 +47,12 @@ def _as_dict(reply, role: str) -> dict:
     raise agents.ToolError(f"{role} върна {type(reply).__name__} вместо обект")
 
 
-def _call_record(policy, role, messages, ledger, note, **kw) -> dict:
+def _call_record(policy, role, messages, ledger, note, **kw) -> tuple[dict, float]:
     """Извикване на агент + запис на РЕАЛНАТА цена в леджъра (одит №2).
 
     Цената идва от отговора на API (cost_box); ако API не я върне —
     честна оценка от policy. В dry режим цената е $0.
+    Връща (отговор, цена) — цената влиза и в журнала на опитите.
     """
     box: dict = {}
     reply = agents.call(policy, role, messages, cost_box=box, **kw)
@@ -57,7 +60,7 @@ def _call_record(policy, role, messages, ledger, note, **kw) -> dict:
     if usd is None:
         usd = 0.0 if policy.is_dry else policy.allowance_per_task_usd
     ledger.record(float(usd), note)
-    return reply
+    return reply, float(usd)
 
 
 # Пазени пътища: инженерът НЕ може да пише тук (одит №1, 01.11.2026).
@@ -66,7 +69,11 @@ def _call_record(policy, role, messages, ledger, note, **kw) -> dict:
 # config/   — иначе може да смекчи политиката.
 # conftest.py/pytest.ini — контролират колекцията/изпълнението на тестовете.
 PROTECTED_TOP = frozenset({"tests", ".ai-brain", "config"})
-PROTECTED_FILES = frozenset({"conftest.py", "pytest.ini", "setup.cfg", "tox.ini"})
+PROTECTED_FILES = frozenset(
+    {"conftest.py", "pytest.ini", "setup.cfg", "tox.ini", "program.md"}
+)
+# program.md е на ЧОВЕКА (модел autoresearch: human edits program.md) —
+# инженерът не пренаписва собствените си инструкции.
 
 
 def _write_file(project: Path, rel: str, content: str) -> Path:
@@ -94,17 +101,30 @@ def _write_file(project: Path, rel: str, content: str) -> Path:
     return target
 
 
+def _with_program(program: str, msgs: list[dict]) -> list[dict]:
+    """Program.md като контекст ПРЕДИ конкретното съобщение (модел
+    autoresearch: агентът чете програмата при всяко извикване)."""
+    if not program:
+        return msgs
+    return [{
+        "role": "user",
+        "content": "## program.md — програмата на екипа (редактира човек)\n"
+                   + program,
+    }] + msgs
+
+
 def _escalate(policy, sm: StateMachine, brain: Memory, ledger, *, dry_dir,
-              debug: bool, reason: str) -> int:
+              debug: bool, reason: str, program: str = "") -> int:
     if sm.state != S.ESCALATED:
         sm.transition(S.ESCALATED, "G3")
     brain.feed(f"ЕСКАЛАЦИЯ: {reason}")
     action = "stop_human"
     try:
-        reply = _call_record(
+        reply, _ = _call_record(
             policy,
             "escalation",
-            [{"role": "user", "content": reason}],
+            _with_program(program,
+                          [{"role": "user", "content": reason}]),
             ledger, "ескалация",
             dry_dir=dry_dir,
             debug=debug,
@@ -152,6 +172,12 @@ def run(
 
     brain = Memory(project / ".ai-brain")
     ledger = Ledger(policy, brain)
+    journal = Journal(brain)
+
+    # program.md: създава се веднъж от шаблона, после човекът го редактира;
+    # агентите го получават във всяко извикване (модел autoresearch).
+    ensure_program(project)
+    program_text = load_program(project)
 
     if resume:
         try:
@@ -200,9 +226,10 @@ def run(
                 brain.feed(f"resume от {sm.history[-1]['from']} → продължаваме")
         else:
             # G0 intake → валиден Contract
-            reply = _call_record(
+            reply, _ = _call_record(
                 policy, "intake",
-                [{"role": "user", "content": instruction}],
+                _with_program(program_text,
+                              [{"role": "user", "content": instruction}]),
                 ledger, "intake",
                 dry_dir=dry_dir, debug=debug,
             )
@@ -215,13 +242,13 @@ def run(
             )
 
             # G1 plan → валиден Plan
-            reply = _call_record(
+            reply, _ = _call_record(
                 policy, "architect",
-                [
+                _with_program(program_text, [
                     {"role": "user", "content": instruction},
                     {"role": "assistant",
                      "content": json.dumps(contract.model_dump(), ensure_ascii=False)},
-                ],
+                ]),
                 ledger, "architect",
                 dry_dir=dry_dir, debug=debug,
             )
@@ -261,18 +288,20 @@ def run(
                 ledger.precheck(policy.allowance_per_task_usd)
                 attempt += 1
                 task.attempts += 1
+                prev_loc = journal.last_loc(task.id)  # база за простотата
+                attempt_usd = 0.0
                 # --- build (инженерът → tool_calls → реален запис)
                 try:
-                    reply = _call_record(
+                    reply, attempt_usd = _call_record(
                         policy, "engineer",
-                        [
+                        _with_program(program_text, [
                             {"role": "user",
                              "content": json.dumps(
                                  {"task": task.model_dump(),
                                   "feedback": last_feedback},
                                  ensure_ascii=False,
                              )},
-                        ],
+                        ]),
                         ledger, f"{task.id} опит {attempt}",
                         dry_dir=dry_dir, code_dir=dry_code, debug=debug,
                     )
@@ -298,12 +327,28 @@ def run(
                 except Exception as e:
                     task.last_error = str(e)
                     brain.feed(f"{task.id} опит {attempt}: грешка при запис — {e}")
+                    # журнал: опитът гръмна ПРЕДИ гейта → crash (не мълчание)
+                    journal.record(
+                        task=task.id, round_no=attempt, status="crash",
+                        loc=judge.count_loc(project), usd=attempt_usd,
+                        description=f"грешка при запис: {e}",
+                    )
                     brain.write_json("plan.json", plan.model_dump())
                     continue  # механичен ретрай
 
-                # --- gate (реални тестове, винаги)
-                ok, out, dur = gates.run_gate(policy.gate_command, project)
-                fb = judge.feedback(task, ok, out, attempt, project)
+                # --- gate (реални тестове, винаги) + kill-rule (таймаут)
+                ok, out, dur = gates.run_gate(
+                    policy.gate_command, project, timeout=policy.gate_timeout_s
+                )
+                loc = judge.count_loc(project)
+                fb = judge.feedback(task, ok, out, attempt, project,
+                                    loc=loc, prev_loc=prev_loc)
+                journal.record(
+                    task=task.id, round_no=attempt,
+                    status="keep" if fb.verdict == Verdict.PASS else "discard",
+                    gate_s=dur, loc=loc, usd=attempt_usd,
+                    description=fb.human_readable.split("\n")[0][:300],
+                )
                 brain.append_jsonl("tasks.jsonl", json.loads(fb.model_dump_json()))
                 brain.write_json("plan.json", plan.model_dump())
                 last_feedback = fb.human_readable
@@ -322,6 +367,7 @@ def run(
                     policy, sm, brain, ledger, dry_dir=dry_dir, debug=debug,
                     reason=f"гейтът на {task.id} провали {max_attempts} пъти "
                            f"подред",
+                    program=program_text,
                 )
 
             brain.write_json("plan.json", plan.model_dump())
@@ -329,9 +375,9 @@ def run(
         # -------------------------------------------------- G4 одит
         done_n = sum(1 for t in plan.tasks if t.state == "passed")
         ledger.precheck(policy.allowance_per_task_usd)  # одит №2
-        reply = _call_record(
+        reply, _ = _call_record(
             policy, "auditor",
-            [
+            _with_program(program_text, [
                 {"role": "user",
                  "content": json.dumps(
                      {"contract": contract.model_dump() if contract else None,
@@ -339,7 +385,7 @@ def run(
                       "passed": done_n, "total": len(plan.tasks)},
                      ensure_ascii=False,
                  )},
-            ],
+            ]),
             ledger, "одит",
             dry_dir=dry_dir, debug=debug,
         )
@@ -350,6 +396,7 @@ def run(
             return _escalate(
                 policy, sm, brain, ledger, dry_dir=dry_dir, debug=debug,
                 reason=f"одитът върна невалиден отговор: {e.errors()}",
+                program=program_text,
             )
         verdict = av.verdict.value
 
@@ -364,6 +411,7 @@ def run(
             policy, sm, brain, ledger, dry_dir=dry_dir, debug=debug,
             reason=f"одитът върна verdict={verdict} ({done_n}/{len(plan.tasks)} "
                    f"готови)",
+            program=program_text,
         )
 
     except BudgetPause as e:

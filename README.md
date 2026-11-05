@@ -1,4 +1,4 @@
-# SDLD Engine v0.1.1 — автономен инженерен двигател
+# SDLD Engine v0.2.0 — автономен инженерен двигател
 
 Спецификация: [ARCHITECTURE.md](ARCHITECTURE.md). Малък, проверим цикъл:
 договор → план → инструменти → реални тестове → одит. Никакви големи
@@ -31,6 +31,27 @@
 
 ---
 
+## Ново в v0.2.0 (05.11.2026) — адаптации от karpathy/autoresearch
+
+Разгледахме вътрешността на [autoresearch](https://github.com/karpathy/autoresearch)
+(автономен изследовател: агент пипа `train.py`, мери `val_bpb`, keep/discard
+през нощта) и пренесохме четири неща в SDLD — всеки път с **червен → зелен**
+тест (общо `82 passed`):
+
+| Адаптация | autoresearch | SDLD Engine v0.2.0 | Тест |
+|---|---|---|---|
+| **Журнал на опитите** | `results.tsv` (keep/discard/crash) | `.ai-brain/journal.tsv`: всеки опит = ред `at/task/round/status/gate_s/loc/usd/description`; append-only, TSV-чист опис | `tests/test_journal.py` |
+| **Kill-rule** | 5 мин фиксиран budget, 10 мин = убий | `gate.timeout_s` в policy.json → бавен гейт се убива и се брои за провал (не виси) | `tests/test_killrule.py` |
+| **Критерий за простота** | „по-добро с по-малко редове = вземи“ | `judge.count_loc` мери растежа на редовете между опитите; win / growth_warn / growth_on_fail влиза в FeedbackPacket (`simplicity=`) | `tests/test_simplicity.py` |
+| **program.md** | човекът редактира `program.md`, агентът чете | шаблон се създава веднъж в проекта; **никога не се презаписва**; агентите го получават във всяко извикване; инженерът НЕ може да го пипа | `tests/test_program.py` |
+
+Ключова разлика спрямо autoresearch: там правилата (не пипай `prepare.py`,
+таймаут, не инсталирай) са **думи в промпт**; тук същите са **код**
+(`PROTECTED_*`, хеш-пазител, allowlist среда, бюджетен precheck).
+Autoresearch е референцията, SDLD е по-строгият вариант на същата идея.
+
+---
+
 ## Изисквания
 
 - Python **3.10+** (тествано на 3.12)
@@ -40,7 +61,7 @@
 ## Бърз старт (PowerShell — това, което е тествано)
 
 ```powershell
-python -m pytest -q            # 51 теста, <2s
+python -m pytest -q            # 82 теста, <6s
 
 # 1) щастлив път — ЧИСТО копие (src изтрит → инженерът го пише)
 Copy-Item -Recurse -Force examples\todo-vat\project scratch
@@ -82,7 +103,8 @@ Exit: `0` = done · `1` = blocked/paused_budget · `2` = лоша употреб
 ## Сигурност (всичко с тест)
 
 - **Пазени пътища:** инженерът не може да пише в `tests/`, `.ai-brain/`,
-  `config/`, `conftest.py`, `pytest.ini` — тестовете дава планът/човекът.
+  `config/`, `conftest.py`, `pytest.ini`, `program.md` — тестовете дава
+  планът/човекът, програмата — човекът.
 - **Хеш на тестовете** преди/след гейта: промяна по време на изпълнение =
   провал. `__pycache__` се игнорира (не е съдържание).
 - **Чиста среда на гейта:** само allowlist (`PATH`, `SystemRoot`, ...) —
@@ -104,11 +126,14 @@ engine/
   memory.py     .ai-brain/ — атомарни записи, CorruptBrain
   budget.py     precheck / запис на реална цена / remaining_need()
   gates.py      чиста среда + хеш-пазител на тестовете
+  journal.py    .ai-brain/journal.tsv — keep|discard|crash на всеки опит
+  program.py    program.md шаблон (създава се веднъж, не се презаписва)
   agents.py     dry локално; live едно место към OpenRouter
-  judge.py      механичен judge (структурен + реален гейт)
+  judge.py      механичен judge + критерий за простота (count_loc)
   loop.py       цикълът; exit 0/1/2
   cli.py        python -m engine.cli {run|status|resume}
-tests/          51 теста (бюджет, гейтове, съдия, памет, сигурност, отговори)
+tests/          82 теста (журнал, kill-rule, простота, program, бюджет, гейтове,
+                съдия, памет, сигурност, отговори)
 examples/       dry-run входове + проект с реални тестове (todo-vat)
 ```
 
@@ -119,7 +144,7 @@ examples/       dry-run входове + проект с реални тесто
 - **live:** попълни `config/models`, сложи `OPENROUTER_API_KEY` в средата,
   после мини на `live`. **Демонстрация с ключ все още не е пускана.**
 
-## Какво остава (v0.2 — по ARCHITECTURE.md)
+## Какво остава (v0.3+ — по ARCHITECTURE.md)
 
 - **SQLite-ish store:** сега паметта е JSON файлове под `.ai-brain/`.
 - **Диалектичен/експертен цикъл и жив LLM-съдия:** сега съдията е

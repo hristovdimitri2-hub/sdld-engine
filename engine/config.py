@@ -21,6 +21,8 @@ class Policy:
         g = data.get("gate", {})
         self.gate_command: list[str] = list(g.get("command", []))
         self.gate_max_attempts = int(g.get("max_attempts", 3))
+        # kill-rule (модел autoresearch): бавен опит се убива, не виси
+        self.gate_timeout_s = int(g.get("timeout_s", 120))
 
         self.dryrun_dir: Path = REPO_ROOT / data.get("dryrun", {}).get(
             "dir", "examples/dryrun"

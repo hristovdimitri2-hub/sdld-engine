@@ -4,7 +4,7 @@ import zipfile
 root = pathlib.Path(".").resolve()
 # e2e* = работни копия от доказателните прогони (не се пакетират)
 skip_dirs = {"__pycache__", ".pytest_cache", ".ai-brain", ".git"}
-out = root.parent / "sdld-engine-v0.1.1.zip"
+out = root.parent / "sdld-engine-v0.2.0.zip"
 
 count = 0
 with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:

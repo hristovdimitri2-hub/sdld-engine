@@ -12,6 +12,7 @@
   },
   "gate": {
     "max_attempts": 3,
+    "timeout_s": 120,
     "command": ["{python}", "-m", "unittest", "discover", "-s", "tests"]
   },
   "dryrun": {
