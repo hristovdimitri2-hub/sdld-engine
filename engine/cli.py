@@ -72,7 +72,7 @@ def build_report(project: Path, *, command: str, exit_code: int,
                  mode: str, instruction: str = "",
                  limit_usd: float | None = None) -> dict:
     """Машиночитаем отчет от файловете в .ai-brain (никога не гръмва)."""
-    from . import __version__
+    from . import SUITE_LAST_RUN, SUITE_TESTS_PASSED, __version__
 
     brain = project / ".ai-brain"
     state = _safe_json(brain / "state.json")
@@ -107,6 +107,11 @@ def build_report(project: Path, *, command: str, exit_code: int,
                    "spent_usd": float(budget.get("spent", 0.0) or 0.0)},
         "journal_tail": _journal_tail(brain),
         "errors": errors,
+        # The suite size as a dated measurement, so a CI step can compare the
+        # number this tool reports against what pytest actually collected
+        # without scraping a document. See tests/test_suite_count.py.
+        "suite": {"tests_passed": SUITE_TESTS_PASSED,
+                  "measured_at": SUITE_LAST_RUN},
     }
     return report
 
