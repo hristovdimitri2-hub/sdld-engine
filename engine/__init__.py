@@ -29,5 +29,5 @@ __version__ = "0.2.0"
 #: Update this and SUITE_LAST_RUN together, after actually running the suite.
 #: Do not count `def test_` by hand: parametrized tests make definitions and
 #: collected items differ, which is precisely how a number goes stale.
-SUITE_TESTS_PASSED = 91
+SUITE_TESTS_PASSED = 92
 SUITE_LAST_RUN = "2026-11-06"

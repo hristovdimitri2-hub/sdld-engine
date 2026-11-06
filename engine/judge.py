@@ -111,7 +111,7 @@ def structural_issues(task: Task, project: Path) -> list[str]:
 
 def feedback(
     task: Task,
-    gate_ok: bool,
+    gate_ok: bool | None,
     gate_output: str,
     round_no: int,
     project: Path,
@@ -119,13 +119,28 @@ def feedback(
     loc: int | None = None,
     prev_loc: int | None = None,
 ) -> FeedbackPacket:
+    """``gate_ok`` е трисъстояниен: True мина, False не мина, None НЕ е проверен.
+
+    ``None`` не може да даде PASS. Липсата на проверка не е доказателство, че
+    кодът е наред — точно както baseline, който не може да се прочете, не е
+    доказателство, че нищо не се е променило.
+    """
     issues = structural_issues(task, project)
-    ok = gate_ok and not issues
+    not_verified = gate_ok is None
+    ok = bool(gate_ok) and not issues
     if ok:
         human = (
             f"{task.id}: гейтът мина ({round_no}. опит) — кодът отговаря "
             f"на критериите."
         )
+    elif not_verified:
+        human = (
+            f"{task.id}: НЕ Е ПРОВЕРЕН ({round_no}. опит) — няма gate команда "
+            f"в policy, така че нищо не е минало. Това не е успех и не може да "
+            f"стане PASS, докато не се конфигурира проверка."
+        )
+        if issues:
+            human += " Отделно, структурни проблеми: " + "; ".join(issues) + "."
     else:
         reasons = []
         if not gate_ok:
@@ -135,18 +150,27 @@ def feedback(
         if gate_output:
             human += "\nИзход от тестовете:\n" + gate_output[-800:]
     # критерий за простота: оценка на растежа между опитите (адаптация)
-    simp = _simplicity(gate_ok, loc=loc, prev_loc=prev_loc)
-    machine = [f"gate={'pass' if gate_ok else 'fail'}"] + issues
+    simp = _simplicity(bool(gate_ok), loc=loc, prev_loc=prev_loc)
+    if not_verified:
+        machine = ["gate=not_verified"] + issues
+    else:
+        machine = [f"gate={'pass' if gate_ok else 'fail'}"] + issues
     if simp:
         machine.append(simp[0])
         human += " " + simp[1]
+    if ok:
+        blocking: list[str] = []
+    elif not_verified:
+        blocking = ["gate_not_verified"] + issues
+    else:
+        blocking = ["gate_fail"] + issues
     return FeedbackPacket(
         task_id=task.id,
         round_no=round_no,
         verdict=Verdict.PASS if ok else Verdict.FAIL,
         machine_readable=machine,
         human_readable=human,
-        blocking_issues=[] if ok else ["gate_fail"] + issues,
+        blocking_issues=blocking,
         found_by=found_by,
     )
 

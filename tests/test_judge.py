@@ -55,3 +55,27 @@ def test_feedback_pass(tmp_path: Path):
                   project=tmp_path)
     assert fb.verdict == Verdict.PASS
     assert fb.blocking_issues == []
+
+
+def test_feedback_never_passes_when_the_gate_did_not_run(tmp_path: Path):
+    """Третото състояние: гейтът не е проверен, значи НЕ е PASS.
+
+    ``gate_ok=None`` идва от gates.run_gate, когато в policy няма gate команда.
+    Преди това липсата на проверка се отчиташе като успех — harness, който
+    показва зелено, без нищо да е минало. Тестът твърди обратното, защото
+    „не знаем" не бива да се показва като „наред".
+    """
+    task = _task(tmp_path)
+    fb = feedback(task, gate_ok=None, gate_output="", round_no=1,
+                  project=tmp_path)
+
+    assert fb.verdict != Verdict.PASS, (
+        "проект без нито една проверка беше отбелязан като успешен"
+    )
+    assert fb.verdict == Verdict.FAIL
+    assert "gate=not_verified" in fb.machine_readable
+    assert "gate_not_verified" in fb.blocking_issues
+    assert "НЕ Е ПРОВЕРЕН" in fb.human_readable
+    # and it must not be reported as an ordinary test failure either
+    assert "gate_fail" not in fb.blocking_issues
+
