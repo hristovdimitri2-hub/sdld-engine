@@ -11,6 +11,12 @@ v0.2.0 = адаптации от karpathy/autoresearch (05.11.2026): журна�
  опитите (keep|discard|crash), kill-rule (gate.timeout_s), критерий за
  простота (растеж на редовете между опитите), program.md програма на
  екипа (човекът я редактира, агентът я чете и не я пипа).
+
+Review-фаза (07.11.2026): преди всеки инженерски опит — последните
+ редове от journal.tsv + git log -10 като контекст преди задачата
+ (engine/review.py); три-валентен гейт (ok=None = „не е проверено“,
+ никога pass) и SUITE_TESTS_PASSED като измерение — идват от
+ паралелните комити 06.11.
 """
 
 __version__ = "0.2.0"
@@ -21,13 +27,13 @@ __version__ = "0.2.0"
 #: reports is the number pytest actually collected.
 #:
 #: tests/test_suite_count.py asserts that equality. It deliberately does NOT
-#: scrape the documents: README.md, SPEC.md and ARCHITECTURE.md state 51, 82 and
-#: 88, and all three are CORRECT, because each sits inside a dated,
-#: version-specific section. A scraper would flag two accurate historical
-#: records as defects, and a guard that cries wolf is worse than no guard.
+#: scrape the documents: README.md, SPEC.md and ARCHITECTURE.md carry dated,
+#: version-specific numbers (51, 82, 88 ...) as historical records. A scraper
+#: would flag accurate history as defects, and a guard that cries wolf is
+#: worse than no guard.
 #:
 #: Update this and SUITE_LAST_RUN together, after actually running the suite.
 #: Do not count `def test_` by hand: parametrized tests make definitions and
 #: collected items differ, which is precisely how a number goes stale.
-SUITE_TESTS_PASSED = 92
-SUITE_LAST_RUN = "2026-11-06"
+SUITE_TESTS_PASSED = 98
+SUITE_LAST_RUN = "2026-11-07"
