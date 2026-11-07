@@ -18,7 +18,7 @@ from pathlib import Path, PurePosixPath
 
 from pydantic import ValidationError
 
-from . import agents, gates, judge
+from . import agents, gates, judge, review
 from .budget import BudgetPause, Ledger, remaining_need
 from .journal import Journal
 from .memory import CorruptBrain, Memory
@@ -292,9 +292,13 @@ def run(
                 attempt_usd = 0.0
                 # --- build (инженерът → tool_calls → реален запис)
                 try:
+                    # Review-фаза: journal + git log ПРЕДИ този опит —
+                    # инженерът вижда какво вече е пробвано (не само feedback)
+                    review_text = review.build(project, journal)
                     reply, attempt_usd = _call_record(
                         policy, "engineer",
                         _with_program(program_text, [
+                            {"role": "user", "content": review_text},
                             {"role": "user",
                              "content": json.dumps(
                                  {"task": task.model_dump(),

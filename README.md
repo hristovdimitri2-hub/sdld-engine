@@ -54,6 +54,27 @@ Autoresearch е референцията, SDLD е по-строгият вари
 
 ---
 
+## Review-фаза (07.11.2026) — контекст преди ВСЕКИ инженерски опит
+
+Адаптация на Phase 1 Review от autoresearch: преди всяко извикване на
+инженера оркестраторът подава **отделно** user-съобщение с:
+
+- **последните 8 реда от `.ai-brain/journal.tsv`** — какво вече е пробвано
+  и какъв е изходът (keep/discard/crash), не само последния feedback;
+- **`git log -10`** на проекта — какво е пипано напоследък.
+
+Редът на съобщенията: `program.md` → Review → задачата. Review влиза
+**само** за роля `engineer` (одиторът/ескалацията не товарят историята).
+Проектът не е git репо или git липсва → ясна бележка в блока, не грешка
+(subprocess с фиксирани аргументи, без shell, таймаут 10 s — четене, не
+запис). Блокът се гради наново преди **всеки** опит (журналът вече има
+ред от предишния).
+
+Тест: `tests/test_review.py` — първо червено (`ModuleNotFoundError: No
+module named 'engine.review'`), после зелено.
+
+---
+
 ## Изисквания
 
 - Python **3.10+** (тествано на 3.12)
@@ -63,7 +84,7 @@ Autoresearch е референцията, SDLD е по-строгият вари
 ## Бърз старт (PowerShell — това, което е тествано)
 
 ```powershell
-python -m pytest -q            # 88 теста, <7s
+python -m pytest -q            # 94 теста, <17s
 
 # 1) щастлив път — ЧИСТО копие (src изтрит → инженерът го пише)
 Copy-Item -Recurse -Force examples\todo-vat\project scratch
@@ -144,13 +165,14 @@ engine/
   budget.py     precheck / запис на реална цена / remaining_need()
   gates.py      чиста среда + хеш-пазител на тестовете
   journal.py    .ai-brain/journal.tsv — keep|discard|crash на всеки опит
+  review.py     Review-фаза: journal tail + git log -10 преди всеки опит
   program.py    program.md шаблон (създава се веднъж, не се презаписва)
   agents.py     dry локално; live едно место към OpenRouter
   judge.py      механичен judge + критерий за простота (count_loc)
   loop.py       цикълът; exit 0/1/2
   cli.py        python -m engine.cli {run|status|resume}
-tests/          88 теста (журнал, kill-rule, простота, program, бюджет, гейтове,
-                съдия, памет, сигурност, отговори, CLI --json)
+tests/          94 теста (журнал, review, kill-rule, простота, program, бюджет,
+                гейтове, съдия, памет, сигурност, отговори, CLI --json)
 examples/       dry-run входове + проект с реални тестове (todo-vat)
 ```
 
