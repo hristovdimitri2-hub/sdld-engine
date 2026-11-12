@@ -13,6 +13,7 @@ audit → done | blocked.
 from __future__ import annotations
 
 import json
+import sys
 import traceback
 from pathlib import Path, PurePosixPath
 
@@ -117,7 +118,7 @@ def _escalate(policy, sm: StateMachine, brain: Memory, ledger, *, dry_dir,
               debug: bool, reason: str, program: str = "") -> int:
     if sm.state != S.ESCALATED:
         sm.transition(S.ESCALATED, "G3")
-    brain.feed(f"ЕСКАЛАЦИЯ: {reason}")
+    brain.feed(f"ЕСКАЛАЦИЯ: {reason}", tag="escalate")
     action = "stop_human"
     try:
         reply, _ = _call_record(
@@ -133,11 +134,12 @@ def _escalate(policy, sm: StateMachine, brain: Memory, ledger, *, dry_dir,
             _as_dict(reply, "escalation")
         ).action
     except Exception as e:
-        brain.feed(f"ескалация без отговор от агент: {e}")
+        brain.feed(f"ескалация без отговор от агент: {e}", tag="escalate")
     if action != "stop_human":
         brain.feed(
             f"action={action} не се поддържа в сглобката — третира се като "
-            f"stop_human (оставаща работа: човешки цикъл за корекция)"
+            f"stop_human (оставаща работа: човешки цикъл за корекция)",
+            tag="escalate",
         )
     sm.transition(S.BLOCKED, "G5")
     print(f"⛔ БЛОКИРАНА: {reason} — нужна е човешка намеса (action={action})")
@@ -194,7 +196,8 @@ def run(
             print(f"Няма какво да се възобнови — state={sm.state.value}")
             return 2
         if not brain.exists("plan.json"):
-            brain.feed("resume без запазен plan.json — нищо за продължаване")
+            brain.feed("resume без запазен plan.json — нищо за продължаване",
+                       tag="resume")
             return 2
     else:
         sm = StateMachine(brain=brain)
@@ -220,10 +223,12 @@ def run(
                     print(f"⏸ БЮДЖЕТ (отново): {e} — увеличи лимита или изчакай.")
                     return 1
                 sm.transition(S.ACTIVE, "G2-resume")
-                brain.feed(f"resume: бюджетът стига → active (лимит {policy.limit_usd} $)")
+                brain.feed(f"resume: бюджетът стига → active (лимит {policy.limit_usd} $)",
+                           tag="resume")
             else:  # BLOCKED / ESCALATED
                 sm.transition(S.ACTIVE, "G-resume")
-                brain.feed(f"resume от {sm.history[-1]['from']} → продължаваме")
+                brain.feed(f"resume от {sm.history[-1]['from']} → продължаваме",
+                           tag="resume")
         else:
             # G0 intake → валиден Contract
             reply, _ = _call_record(
@@ -238,7 +243,8 @@ def run(
             brain.write_json("contract.json", contract.model_dump())
             brain.feed(
                 f"G0 intake: „{contract.name}“ — "
-                f"{len(contract.acceptance_criteria)} критерии"
+                f"{len(contract.acceptance_criteria)} критерии",
+                tag="intake",
             )
 
             # G1 plan → валиден Plan
@@ -256,20 +262,22 @@ def run(
             if plan.contract_id and plan.contract_id != contract.id:
                 brain.feed(
                     f"внимание: plan.contract_id={plan.contract_id} ≠ "
-                    f"contract.id={contract.id}"
+                    f"contract.id={contract.id}",
+                    tag="plan",
                 )
             sm.transition(S.PLANNED, "G1")
             brain.write_json("plan.json", plan.model_dump())
-            brain.feed(f"G1 plan: {len(plan.tasks)} задачи")
+            brain.feed(f"G1 plan: {len(plan.tasks)} задачи", tag="plan")
 
             # G2 бюджетен pre-check (спираме ПРЕДИ скъпо действие)
             need = len(plan.tasks) * policy.allowance_per_task_usd
             warning = ledger.precheck(need)
             if warning:
-                brain.feed(warning)
+                brain.feed(warning, tag="budget")
             sm.transition(S.ACTIVE, "G2")
             brain.feed(
-                f"G2 бюджет ок: нужно {need:.2f} $ / лимит {policy.limit_usd:.2f} $"
+                f"G2 бюджет ок: нужно {need:.2f} $ / лимит {policy.limit_usd:.2f} $",
+                tag="budget",
             )
 
         # -------------------------------------------------- изпълнение
@@ -330,7 +338,8 @@ def run(
                     # платен дори ако write-ът се провали (одит №2)
                 except Exception as e:
                     task.last_error = str(e)
-                    brain.feed(f"{task.id} опит {attempt}: грешка при запис — {e}")
+                    brain.feed(f"{task.id} опит {attempt}: грешка при запис — {e}",
+                               tag="attempt")
                     # журнал: опитът гръмна ПРЕДИ гейта → crash (не мълчание)
                     journal.record(
                         task=task.id, round_no=attempt, status="crash",
@@ -360,9 +369,11 @@ def run(
                 if fb.verdict == Verdict.PASS:
                     task.state = "passed"
                     task.last_error = ""
-                    brain.feed(f"ГЕЙТ PASS {task.id} (опит {attempt}, {dur:.1f}s)")
+                    brain.feed(f"ГЕЙТ PASS {task.id} (опит {attempt}, {dur:.1f}s)",
+                               tag="gate")
                     break
-                brain.feed(f"ГЕЙТ FAIL {task.id} (опит {attempt}/{max_attempts})")
+                brain.feed(f"ГЕЙТ FAIL {task.id} (опит {attempt}/{max_attempts})",
+                           tag="gate")
                 if debug and out:
                     print(out[-1200:])
             else:
@@ -406,7 +417,8 @@ def run(
 
         if verdict == "pass" and done_n == len(plan.tasks):
             sm.transition(S.DONE, "G4")
-            brain.feed(f"G4 одит pass — екипът завърши {done_n}/{len(plan.tasks)}")
+            brain.feed(f"G4 одит pass — екипът завърши {done_n}/{len(plan.tasks)}",
+                       tag="audit")
             _finalize_memory(brain, sm, plan, instruction)
             print(f"✅ Екипът завърши: {done_n}/{len(plan.tasks)} задачи")
             return 0
@@ -421,7 +433,7 @@ def run(
     except BudgetPause as e:
         if sm.can(S.PAUSED_BUDGET):
             sm.transition(S.PAUSED_BUDGET, "G2")
-        brain.feed(f"БЮДЖЕТ СПИРА: {e}")
+        brain.feed(f"БЮДЖЕТ СПИРА: {e}", tag="budget")
         print(f"⏸ БЮДЖЕТ СПИРА: {e}\n   Пусни: resume --budget-limit <сума>")
         return 1
     except CorruptBrain as e:
@@ -433,7 +445,7 @@ def run(
         )
         return 1
     except Exception as e:
-        brain.feed(f"ВЪТРЕШНА ГРЕШКА: {type(e).__name__}: {e}")
+        brain.feed(f"ВЪТРЕШНА ГРЕШКА: {type(e).__name__}: {e}", tag="error")
         if debug:
             traceback.print_exc()
         else:
@@ -442,3 +454,12 @@ def run(
             sm.transition(S.BLOCKED, "G5")
         _finalize_memory(brain, sm, plan, instruction)
         return 1
+    finally:
+        # index.md се подновява при ВСЯКО излизане от цикъла — човекът и
+        # външният агент (VisiCode) винаги намират свеж каталог на паметта
+        # (модел: index.md от LLM Wiki). Грешка тук НИКОГА не маскира
+        # резултата от цикъла.
+        try:
+            brain.update_index()
+        except Exception as e:
+            print(f"index.md не е записан: {e}", file=sys.stderr)

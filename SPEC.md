@@ -1,7 +1,7 @@
 # SDLD Engine — спецификационен лист (v0.2.0, 07.11.2026)
 
 Една страница: **какво може, как се вика, какво липсва.** Всеки ред е
-проверен с команда + реален изход: **98 pytest**, **3 E2E от чисти копия**,
+проверен с команда + реален изход: **105 pytest**, **3 E2E от чисти копия**,
 CLI `--json` парсен от PowerShell (`ConvertFrom-Json`).
 
 ## 1. Какво е
@@ -76,6 +76,10 @@ trace. Тест: `tests/test_cli_json.py` (6 теста).
 - **Review-фаза (07.11):** преди всеки инженерски опит — последните 8 реда
   от journal.tsv + `git log -10` като отделно съобщение преди задачата
   (`engine/review.py`, тест `tests/test_review.py`).
+- **Индекс на паметта (12.11, модел LLM Wiki):** `.ai-brain/index.md` —
+  автоматичен каталог с броеве от данните; feed.md редове с таг
+  `<ts> | <tag> | <текст>` (`grep "| gate |"`); невалиден таг = грешка
+  (`engine/memory.py`, тест `tests/test_index.py`).
 
 ## 6. Какво НЕ може / липсва (честно)
 
@@ -105,5 +109,6 @@ trace. Тест: `tests/test_cli_json.py` (6 теста).
 ## 8. Къде са файловете
 
 `hristovdimitri2-hub/sdld-engine` (GitHub) · `engine/cli.py` (--json) ·
-`engine/review.py` (Review-фаза) · `tests/test_cli_json.py`,
-`tests/test_review.py` · този лист се обновява при всяка промяна по §3–§6.
+`engine/review.py` (Review-фаза) · `engine/memory.py` (index.md + тагове) ·
+`tests/test_cli_json.py`, `tests/test_review.py`, `tests/test_index.py` ·
+този лист се обновява при всяка промяна по §3–§6.

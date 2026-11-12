@@ -133,6 +133,16 @@ def _emit_report(report: dict, project: Path) -> None:
 
 def cmd_status(args) -> int:
     project = Path(args.project).resolve()
+    # index.md се подновява и тук — „зареди отново каталога“ е една
+    # команда, дори файлът да е изтрит (модел LLM Wiki: index е жив)
+    brain_dir = project / ".ai-brain"
+    if brain_dir.exists():
+        try:
+            from .memory import Memory
+
+            Memory(brain_dir).update_index()
+        except Exception as e:
+            print(f"index.md не е записан: {e}", file=sys.stderr)
     if getattr(args, "json", False):
         report = build_report(project, command="status", exit_code=0,
                               mode="")

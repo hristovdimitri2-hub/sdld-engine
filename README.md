@@ -75,6 +75,29 @@ module named 'engine.review'`), после зелено.
 
 ---
 
+## Памет с индекс + тагове в лентата (12.11.2026, модел LLM Wiki)
+
+Взехме идеите от idea файла **LLM Wiki** (Karpathy gist `442a6bf`),
+адаптирани за паметта на екипа:
+
+- **`.ai-brain/index.md`** — автоматичен съдържателен каталог: кой файл
+  какъв е, кога е обновен + броеве, изчислени **от данните** (журнал:
+  N опита keep/discard/crash; фийд: M реда). Само наличните файлове —
+  нищо не се измисля; празен мозък казва „няма още нищо“. Обновява се при
+  **всяко** излизане от цикъла (`finally`) и при `status` (дори файлът да
+  е изтрит — една команда го презарежда). Грешка при записа НИКОГА не
+  маскира резултата от цикъла.
+- **feed.md с категорийни тагове** — редът е `- <ts> | <tag> | <текст>`;
+  `grep "| gate |" feed.md` връща само събитията на гейта. Тагове:
+  `intake, plan, budget, gate, attempt, audit, escalate, resume, error`.
+  Невалиден таг (интервал/тръбичка/нов ред) → `ValueError`, не мълчаливо
+  счупен ред.
+
+Тест: `tests/test_index.py` — 7 теста, първо червено (7 failed: липсва
+`index.md`, `AttributeError: no update_index`, редове без таг), после зелено.
+
+---
+
 ## Изисквания
 
 - Python **3.10+** (тествано на 3.12)
@@ -84,7 +107,7 @@ module named 'engine.review'`), после зелено.
 ## Бърз старт (PowerShell — това, което е тествано)
 
 ```powershell
-python -m pytest -q            # 98 теста, <17s
+python -m pytest -q            # 105 теста, <17s
 
 # 1) щастлив път — ЧИСТО копие (src изтрит → инженерът го пише)
 Copy-Item -Recurse -Force examples\todo-vat\project scratch
@@ -161,7 +184,8 @@ engine/
   schemas.py    Contract, Plan, Task, FeedbackPacket, + валидни отговори
   config.py     палитри от policy.json (+ ENGINE_MODE=live|dry)
   state.py      G0..G5 преходи
-  memory.py     .ai-brain/ — атомарни записи, CorruptBrain
+  memory.py     .ai-brain/ — атомарни записи, CorruptBrain, index.md каталог,
+                feed с тагове (`<ts> | <tag> | <текст>`)
   budget.py     precheck / запис на реална цена / remaining_need()
   gates.py      чиста среда + хеш-пазител на тестовете
   journal.py    .ai-brain/journal.tsv — keep|discard|crash на всеки опит
@@ -171,8 +195,8 @@ engine/
   judge.py      механичен judge + критерий за простота (count_loc)
   loop.py       цикълът; exit 0/1/2
   cli.py        python -m engine.cli {run|status|resume}
-tests/          98 теста (журнал, review, kill-rule, простота, program, бюджет,
-                гейтове, съдия, памет, сигурност, отговори, CLI --json,
+tests/          105 теста (журнал, review, index, kill-rule, простота, program,
+                бюджет, гейтове, съдия, памет, сигурност, отговори, CLI --json,
                 suite count)
 examples/       dry-run входове + проект с реални тестове (todo-vat)
 ```

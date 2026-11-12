@@ -17,6 +17,11 @@ Review-фаза (07.11.2026): преди всеки инженерски опи�
  (engine/review.py); три-валентен гейт (ok=None = „не е проверено“,
  никога pass) и SUITE_TESTS_PASSED като измерение — идват от
  паралелните комити 06.11.
+
+Памет с индекс (12.11.2026, модел LLM Wiki / Karpathy gist 442a6bf):
+ .ai-brain/index.md — автоматичен каталог (файл → какво е → обновен +
+ броеве от данните); feed.md редове с категорийен таг
+ „<ts> | <tag> | <текст>“ (grep по събитие); таг без валидация = грешка.
 """
 
 __version__ = "0.2.0"
@@ -35,5 +40,5 @@ __version__ = "0.2.0"
 #: Update this and SUITE_LAST_RUN together, after actually running the suite.
 #: Do not count `def test_` by hand: parametrized tests make definitions and
 #: collected items differ, which is precisely how a number goes stale.
-SUITE_TESTS_PASSED = 98
-SUITE_LAST_RUN = "2026-11-07"
+SUITE_TESTS_PASSED = 105
+SUITE_LAST_RUN = "2026-11-12"
