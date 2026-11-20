@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from conftest import FAILING_TESTS, PASSING_TESTS
 from engine import loop
 from engine.agents import ToolError
 from engine.gates import run_gate
@@ -104,6 +105,43 @@ def test_gate_env_has_no_arbitrary_passthrough(tmp_path: Path, monkeypatch):
     )
     assert ok is True
     assert "do-not-leak" not in out
+
+
+# --- възпроизвеждане на одит №1 (07.11.2026, v0.1.0) през ЦЕЛИЯ цикъл ---
+
+def test_loop_reproduces_audit1_engineer_cannot_fake_the_gate(
+        tmp_path: Path, make_project, fake_agents):
+    """Външният одит на v0.1.0: инженерът подаде код с `return None` и тест
+    `assertTrue(True)` → резултат PASS, done, exit 0.
+
+    Сега: write_file в tests/ се отхвърля още на опита (crash в журнала),
+    истинските тестовете остават непроменени, ретраите свършват и цикълът
+    ескалира → exit 1. Този тест минаваше САМО ако №1 е поправен.
+    """
+    from engine.config import load_policy
+
+    proj = make_project(passing=False)  # истинските тестове се проваляват
+    roles = fake_agents(engineer={
+        "summary": "пренаписвам тестовете, за да минат",
+        "tool_calls": [{
+            "tool": "write_file",
+            "args": {"path": "tests/test_gate.py", "content": PASSING_TESTS},
+        }],
+    })
+    policy = load_policy()
+
+    code = loop.run("направи го да минава", str(proj), policy=policy)
+
+    assert code == 1  # старото (v0.1.0): 0 — фалшив „done“
+    # тестовете са недокоснати — гейтът вижда истинските (провалени)
+    assert (proj / "tests" / "test_gate.py").read_text(
+        encoding="utf-8") == FAILING_TESTS
+    # инженерът е извикан пълните max_attempts (3) пъти, но нищо не е записано
+    assert roles.count("engineer") == 3
+    plan = (proj / ".ai-brain" / "plan.json")
+    assert plan.exists() and \
+        __import__("json").loads(plan.read_text(encoding="utf-8"))[
+            "tasks"][0]["attempts"] == 3
 
 
 def test_gate_ignores_bytecode_caches(tmp_path: Path):
