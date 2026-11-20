@@ -400,3 +400,63 @@ precheck. Референцията е приета, слабото ѝ място
 
 Валидация: `82 passed`; E2E от чисти копия — happy `exit 0` (journal: keep),
 bad `exit 1` (journal: discard×3), paused `exit 1 → resume exit 0` (done).
+
+---
+
+## 18. Външни референции от GitHub (12.11.2026)
+
+Търсене в GitHub по заявки като „autonomous software engineering agent“
+(с разрешение на човека). Намереното е малко (5–13★ проекти), но три
+носят приложима информация; приложимото е отбелязано, останалото е
+беклог и чака „дай“.
+
+**[Dienvu1008/CodeForge-v2](https://github.com/Dienvu1008/CodeForge-v2)**
+(детерминистично ядро, TypeScript):
+
+- Централният им закон — „the LLM proposes; the deterministic runtime
+decides and enforces“ — е и нашият: гейтът решава, моделът не може да
+tвърди „готово“ (§1). Прието, вече е в код.
+- **Двусосен модел за коректност**: Runtime Integrity (инварианти на
+ядрото) ≠ Task Correctness (решава ли проблема). Нашето: 108 теста +
+SUITE-гард = integrity; одитът G4 = correctness. Разделението вече е
+факт — формализирано тук, не измислено наново.
+- **Речник за възстановяване**: RETRY/FIX/ESCALATE/ABORT (REPLAN и
+ROLLBACK са стъбове и при тях). SDLD: RETRY (ретраи) и ESCALATE
+(G3→G5) работят; **ABORT и ROLLBACK (git revert на опита) липсват —
+беклог**.
+- **Per-purpose model routing**: план/архитект на силен модел,
+изпълнение на евтин; при тях LLM никога не си избира модел. Нашето
+`config/policy.json → models` вече има клавове `default/judge/cheap`
+(празни) — пътят е отворен, не е попълнен — беклог.
+- **Evidence-driven развитие**: никаква стъпка към повече автономност
+без before/after benchmark. Прието: нашето червено→зелено + датирани
+измервания (`SUITE_*`) е същото в малък мащаб.
+- **Pre-push gate** при тях блокира комит с код без обновена
+документация; нашият `SUITE_TESTS_PASSED` гард е малката версия —
+пълната (docs-sync hook) = беклог.
+- **Shadow ablation**: записват всяко спиране на ядрото като
+would-block и после мерят колко е спряло — кандидат за Фаза 1
+(Критикът), беклог.
+
+**[open-covenant/covenant](https://github.com/open-covenant/covenant)**
+(операционен слой за агенти, Rust, Apache-2.0):
+
+- Append-only JSONL + hash-chain одит → приложимо: верига от хешове
+върху `tasks.jsonl`/`journal.tsv` (tamper-evidence) — беклог.
+- Budget ledger с pause checkpoint и **еднократен resume handoff** →
+nие вече имаме paused_budget + resume; „еднократност“ на resume-а не
+е нужна сега.
+- **Commit-scoped provenance** (task record ↔ git комит) → `review.py`
+вече дава `git log -10` на инженера; свързване journal-ред ↔ комит =
+беклог.
+- Тяхното BUILT.md („какво е реално, какво е roadmap“) прави същото,
+което нашето README прави в таблицата одит → поправки.
+- Жив x402 seller (USDC на Solana/Base) — съседна екосистема на
+Kristo; инфо само, действие няма.
+
+**[lip20041219/zmai](https://github.com/lip20041219/zmai)**: verification
+loop + self-stop — спираме се на бюджет/гейт-провал/ескалация; автономен
+stop при изчерпана ПОЛЗА (не само бюджет) = идея, беклог.
+
+Законът, който и трите спазват и който вече е в §1: **агентът не е
+авторитет за собствения си успех.**
