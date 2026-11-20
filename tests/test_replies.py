@@ -74,3 +74,29 @@ def test_loop_reports_invalid_auditor_verdict(tmp_path, make_project,
     feed = (proj / ".ai-brain" / "feed.md").read_text(encoding="utf-8")
     assert "невалиден отговор" in feed
     assert "verdict=" not in feed
+
+
+def test_escalation_garbage_reply_falls_back_to_stop_human(
+        tmp_path, make_project, fake_agents):
+    """№5 (ескалация): отговор БЕЗ валидно action (число вместо низ) не
+    се превръща в произволно действие на агента — безопасният fallback е
+    stop_human, с бележка в лентата, и цикълът пак излиза с exit 1.
+
+    Старото: reply.get(...) → action=7 мина без проверка (свободна
+    речник, одит №5); схемата сега отхвърля и _escalate записва защо.
+    """
+    from engine import loop
+    from engine.config import load_policy
+
+    proj = make_project(passing=False)  # гейтът провали 3 пъти → ескалация
+    fake_agents(escalation={"action": 7, "reason": "боклук"})
+    policy = load_policy()
+
+    code = loop.run("инструкция", str(proj), policy=policy)
+
+    assert code == 1
+    feed = (proj / ".ai-brain" / "feed.md").read_text(encoding="utf-8")
+    assert "ЕСКАЛАЦИЯ" in feed
+    assert "ескалация без отговор" in feed  # схемата отхвърли → бележка
+    state = (proj / ".ai-brain" / "state.json").read_text(encoding="utf-8")
+    assert '"blocked"' in state  # не е тръгнало по action=7

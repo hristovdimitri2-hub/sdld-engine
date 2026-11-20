@@ -68,3 +68,33 @@ def test_write_text_is_atomic_and_leaves_no_tmp(tmp_path):
     p = brain.path("feed.md")
     assert p.read_text(encoding="utf-8") == "ред 1\n"
     assert not list(p.parent.glob("*.tmp"))
+
+
+# --- E2E през целия цикъл: възпроизвеждането на №4 от одита ---------------
+
+def test_resume_on_corrupt_state_stops_clearly_without_overwrite(
+        tmp_path, make_project, fake_agents):
+    """Одитът (v0.1.0): „Счупих файла. resume каза „state=draft, няма
+    какво да се възобнови“ — загубата на състояние изглеждаше нормална.
+
+    Сега: resume върху счупен state.json → ЯСЕН стоп exit 1, съобщение за
+    поправка и файлът остава недокоснат (нищо не се презаписва).
+    Старото: exit 2 („няма какво да се възобнови“) сякаш всичко е наред.
+    """
+    from engine import loop
+    from engine.config import load_policy
+
+    proj = make_project(passing=True)
+    fake_agents()  # не се стига до агенти — спира се преди това
+    brain_dir = proj / ".ai-brain"
+    brain_dir.mkdir(exist_ok=True)
+    broken = "{ това е счупен JSON"
+    (brain_dir / "state.json").write_text(broken, encoding="utf-8")
+
+    code = loop.run("инструкция", str(proj), policy=load_policy(),
+                    resume=True)
+
+    assert code == 1  # старото: 2 — счупването изглеждаше като чист draft
+    # нищо не е презаписано — човекът поправя, данните са запазени
+    assert (brain_dir / "state.json").read_text(
+        encoding="utf-8") == broken

@@ -107,7 +107,7 @@ module named 'engine.review'`), после зелено.
 ## Бърз старт (PowerShell — това, което е тествано)
 
 ```powershell
-python -m pytest -q            # 106 теста, <17s
+python -m pytest -q            # 108 теста, <17s
 
 # 1) щастлив път — ЧИСТО копие (src изтрит → инженерът го пише)
 Copy-Item -Recurse -Force examples\todo-vat\project scratch
@@ -195,7 +195,7 @@ engine/
   judge.py      механичен judge + критерий за простота (count_loc)
   loop.py       цикълът; exit 0/1/2
   cli.py        python -m engine.cli {run|status|resume}
-tests/          106 теста (журнал, review, index, kill-rule, простота, program,
+tests/          108 теста (журнал, review, index, kill-rule, простота, program,
                 бюджет, гейтове, съдия, памет, сигурност, отговори, CLI --json,
                 suite count)
 examples/       dry-run входове + проект с реални тестове (todo-vat)
